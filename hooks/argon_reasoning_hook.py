@@ -49,11 +49,27 @@ VERIFY_TOOLS = {"run_command", "read_file", "view_file", "grep_search"}
 
 PROMPT_TURN_START = """<argon_reasoning_protocol mode="turn_start">
 MANDATORY PRE-ACTION THINKING GATE (Argon-4 Rigor Mode):
-Before emitting ANY tool call or response, work through these 4 steps inside your `<thinking>` block:
+Before emitting ANY tool call or response, work through these 5 steps inside your `<thinking>` block:
 1. [DECOMPOSE & CONSTRAINTS]: List every explicit requirement, implicit edge case, and negative constraint from the user request and active rules.
 2. [FACT VS. ASSUMPTION]: Separate what you HAVE verified in files/schemas from what you are ASSUMING. NEVER guess file paths, APIs, CLI flags, or column names—inspect first.
 3. [RED-TEAM / DEVIL'S ADVOCATE]: Identify the #1 way your initial hypothesis or implementation could fail or miss an edge case (e.g., Simpson's paradox, rate-vs-volume traps, security/RCE flaws), and design against it. If the user's premise has a flaw, state it clearly.
-4. [ZERO-LAZINESS, BATCHING & VERIFICATION]: Batch all independent `read_file`/`edit_file`/`write_file` calls in parallel within a single turn to minimize round-trips. Write complete, production-grade logic and verify every deliverable before ending your turn.
+4. [SKILL & DESIGN-SYSTEM DISCOVERY (NO SHORTCUT BIAS)]: Check `<skills>` for matching domain skills (`pptx`, `executive-slides`, `minimal-slides`, `docx`, `xlsx`, `frontend-design`, etc.). NEVER skip reading `SKILL.md` just because you know basic library syntax—batch `read_file` on the relevant `SKILL.md` in Turn 1 BEFORE writing any generator script.
+5. [ZERO-LAZINESS, BATCHING & VERIFICATION]: Batch all independent `read_file`/`edit_file`/`write_file` calls in parallel within a single turn to minimize round-trips. Write complete, production-grade logic and verify every deliverable before ending your turn.
+</argon_reasoning_protocol>"""
+
+PROMPT_PPTX_DESIGN_ADDON = """
+<argon_pptx_design_mandate>
+MANDATORY EXECUTIVE SLIDE DESIGN GATE (Closing the Argon-vs-Flash Design Gap):
+1. READ SKILLS FIRST: Call `read_file` on `/Users/widyantohd/.gemini/config/skills/pptx/SKILL.md` AND `/Users/widyantohd/.gemini/config/skills/executive-slides/SKILL.md` in Turn 1 before writing any `.pptx` code.
+2. MCKINSEY ACTION TITLES: Every slide title MUST state a quantified insight/takeaway (e.g. "Region West Drives 62.1% ($6.00M) of Q3 Annualized Revenue Leakage Despite 2.50% Churn"), paired with an uppercase category kicker above it. NEVER use generic topic labels ("Executive Summary", "Regional Analysis").
+3. ASYMMETRIC CONSULTING GRIDS (NO STACKED ROUNDED BOXES): Use crisp `RECTANGLE` cards (`1pt` subtle border, light `#F8FAFC` canvas) in asymmetric 2-column splits (e.g., `7.35"` main card + `4.58"` dark navy callout card, or `7.90"` table + `4.03"` diagnostic sidebar). NEVER stack 3+ full-width `ROUNDED_RECTANGLE` horizontal bands across `11.73"`.
+4. TYPOGRAPHY & TABLE DISCIPLINE: Explicitly set `font.name = "Cambria"` (headings/KPI numbers) and `"Calibri"` (body/tables) on every run (`space_after = Pt(4)`). Right-align all numeric/currency table columns (`PP_ALIGN.RIGHT`) and ALWAYS include a bold `Total / Avg` bottom summary row.
+</argon_pptx_design_mandate>"""
+
+PROMPT_MID_TURN_UNREAD_SKILLS = """<argon_reasoning_protocol mode="unread_skills_gate">
+SKILL & DESIGN GATE ACTIVE — You have NOT yet read the required domain skill(s) for this task: {skills}
+- DO NOT write or execute `.pptx`/`.docx`/`.xlsx` generator scripts using generic pre-trained defaults!
+- Call `read_file` on {skills} NOW (batched in parallel), and for `.pptx` slides enforce McKinsey Action Titles, Asymmetric 2-Column `RECTANGLE` grids, explicit `Cambria`/`Calibri` fonts, right-aligned numeric columns, and a bold `Total / Avg` table row.
 </argon_reasoning_protocol>"""
 
 PROMPT_ERROR_RECOVERY = """<argon_reasoning_protocol mode="error_recovery">
@@ -198,6 +214,8 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
       - unverified_files: List of basenames modified since the last verification tool call
       - unverified_code_files: List of code file basenames modified since the last verification tool call
       - forced_continues_in_turn: Count of Stop-hook continuations already injected this turn
+      - needs_pptx_design: True if the turn prompt requests `.pptx` / presentation / slide creation
+      - unread_required_skills: List of `SKILL.md` paths required by the prompt that have not yet been read
     """
     result = {
         "is_turn_start": True,
@@ -205,6 +223,8 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
         "unverified_files": [],
         "unverified_code_files": [],
         "forced_continues_in_turn": 0,
+        "needs_pptx_design": False,
+        "unread_required_skills": [],
     }
     if not steps:
         return result
@@ -215,6 +235,40 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
         if is_turn_trigger_step(steps[i]):
             last_user_idx = i
             break
+
+    trigger_text = str(steps[last_user_idx].get("content") or "").lower() if last_user_idx >= 0 else ""
+    skills_root = os.path.expanduser("~/.gemini/config/skills")
+    required_skills: list[str] = []
+
+    if any(k in trigger_text for k in (".pptx", "python-pptx", "slide deck", "executive readout", "presentation")):
+        result["needs_pptx_design"] = True
+        for sp in (f"{skills_root}/pptx/SKILL.md", f"{skills_root}/executive-slides/SKILL.md"):
+            if os.path.isfile(sp):
+                required_skills.append(sp)
+    if any(k in trigger_text for k in (".docx", "python-docx", "word doc", "memorandum")):
+        sp = f"{skills_root}/docx/SKILL.md"
+        if os.path.isfile(sp):
+            required_skills.append(sp)
+    if any(k in trigger_text for k in (".xlsx", "openpyxl", "excel workbook")):
+        sp = f"{skills_root}/xlsx/SKILL.md"
+        if os.path.isfile(sp):
+            required_skills.append(sp)
+
+    # Scan all steps in the transcript to see which SKILL.md files have already been read in this conversation
+    read_paths: set[str] = set()
+    for step in steps:
+        if step.get("type") == "PLANNER_RESPONSE":
+            tcalls = step.get("tool_calls") or []
+            if isinstance(tcalls, list):
+                for tc in tcalls:
+                    if isinstance(tc, dict) and tc.get("name") in ("read_file", "view_file"):
+                        p = extract_tool_arg_path(tc.get("args") or {})
+                        if p:
+                            read_paths.add(os.path.abspath(os.path.expanduser(p)))
+
+    result["unread_required_skills"] = [
+        sp for sp in required_skills if os.path.abspath(sp) not in read_paths
+    ]
 
     turn_steps = steps[last_user_idx + 1 :] if last_user_idx >= 0 else steps
     if not turn_steps:
@@ -333,9 +387,16 @@ def handle_pre_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     if turn_state["is_turn_start"]:
         mode = "turn_start"
         msg = PROMPT_TURN_START
+        if turn_state.get("needs_pptx_design"):
+            mode = "turn_start+pptx_design"
+            msg = msg + PROMPT_PPTX_DESIGN_ADDON
     elif turn_state["last_tool_errored"]:
         mode = "error_recovery"
         msg = PROMPT_ERROR_RECOVERY
+    elif turn_state.get("unread_required_skills"):
+        mode = "unread_skills_gate"
+        skills_str = ", ".join(turn_state["unread_required_skills"])
+        msg = PROMPT_MID_TURN_UNREAD_SKILLS.format(skills=skills_str)
     elif turn_state["unverified_files"]:
         mode = "unverified_edits"
         files_str = ", ".join(turn_state["unverified_files"][:5])

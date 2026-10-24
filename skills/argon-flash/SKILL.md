@@ -30,6 +30,7 @@ To save ~95% of your weekly Argon 4 quota while retaining 100% Argon-grade outpu
      4. [BATCH]: Batch independent read_file, edit_file, and run_command calls in parallel in a single turn.
      5. [SURGICAL EDITS]: Use edit_file instead of full-file overwrites. Zero placeholders/TODOs.
      6. [VERIFY BEFORE COMPLETION]: Run tests, syntax checks, or office_view_hook.py --summary-only before finishing.
+     7. [MANDATORY SKILL & DESIGN DISCOVERY]: Before generating any .pptx, .docx, .xlsx, or UI deliverable, batch `read_file` on the matching SKILL.md (`pptx/SKILL.md` + `executive-slides/SKILL.md`, `docx/SKILL.md`, `xlsx/SKILL.md`, `frontend-design/SKILL.md`) in Turn 1. For .pptx decks, strictly use McKinsey Action Titles, asymmetric 2-column RECTANGLE grids, explicit Cambria/Calibri fonts, right-aligned numeric table columns, and a Total/Avg summary row.
      ```
 3. **Invoke the Subagent** via `invoke_subagent`:
    - `TypeName`: `"argon-flash-worker"`
