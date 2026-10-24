@@ -74,8 +74,8 @@ STEP ANCHOR: In `<thinking>`, state in 1 concise sentence what the previous tool
 </argon_reasoning_protocol>"""
 
 
-def tail_jsonl_lines(path: str, max_bytes: int = 65536) -> list[dict[str, Any]]:
-    """Read the last `max_bytes` of a JSONL transcript file and parse valid JSON lines."""
+def tail_jsonl_lines(path: str, max_bytes: int = 262144) -> list[dict[str, Any]]:
+    """Read the last `max_bytes` (default 256KB) of a JSONL transcript file and parse valid JSON lines."""
     if not path or not os.path.isfile(path):
         return []
     try:
@@ -105,16 +105,38 @@ def tail_jsonl_lines(path: str, max_bytes: int = 65536) -> list[dict[str, Any]]:
         return []
 
 
+def is_turn_trigger_step(step: dict[str, Any]) -> bool:
+    """
+    Return True if `step` initiates a new agent turn:
+      1. Main agent conversation: `type == "USER_INPUT"` and `source == "USER_EXPLICIT"`
+      2. Subagent / inter-agent message: `type == "SYSTEM_MESSAGE"` containing `[Message]`
+    """
+    stype = step.get("type")
+    if stype == "USER_INPUT" and step.get("source") == "USER_EXPLICIT":
+        return True
+    if stype == "SYSTEM_MESSAGE":
+        content = str(step.get("content") or "")
+        if "[Message]" in content and "<SYSTEM_MESSAGE>" in content:
+            return True
+    return False
+
+
 def detect_active_model(payload: dict[str, Any], steps: list[dict[str, Any]]) -> str:
     """
-    Determine the active model name from the hook payload or recent `<USER_SETTINGS_CHANGE>`
-    tags in the transcript.
+    Determine the active model name from the hook payload, explicit benchmark/subagent tags,
+    or recent `<USER_SETTINGS_CHANGE>` tags in the transcript.
     """
     model_name = str(payload.get("modelName") or "").strip()
-    # Scan recent USER_INPUT steps in reverse for explicit model selection changes
+    # Scan recent turn-trigger steps in reverse for explicit model selection changes or tags
     for step in reversed(steps):
-        if step.get("type") == "USER_INPUT":
+        if is_turn_trigger_step(step):
             content = str(step.get("content") or "")
+            if "[AGY_HOOK_BYPASS]" in content:
+                return "argon-bypass"
+            if "[AGY_MODEL: ARGON" in content:
+                return "Gemini 4 Argon"
+            if "[AGY_MODEL: FLASH" in content:
+                return "Gemini Flash"
             matches = re.findall(
                 r"changed setting `Model Selection` from .+ to ([^\.\n]+)",
                 content,
@@ -161,10 +183,10 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
     if not steps:
         return result
 
-    # Find index of the last real USER_INPUT step
+    # Find index of the last turn-initiating step (USER_INPUT or subagent [Message])
     last_user_idx = -1
     for i in range(len(steps) - 1, -1, -1):
-        if steps[i].get("type") == "USER_INPUT" and steps[i].get("source") == "USER_EXPLICIT":
+        if is_turn_trigger_step(steps[i]):
             last_user_idx = i
             break
 
@@ -246,6 +268,29 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def log_hook_trace(event: str, payload: dict[str, Any], active_model: str, mode: str, injected_chars: int) -> None:
+    """Append a lightweight diagnostic trace entry to `/tmp/agy_argon_hook_trace.jsonl` when `AGY_HOOK_TRACE=1`."""
+    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes"):
+        return
+    try:
+        import datetime
+        trace_path = "/tmp/agy_argon_hook_trace.jsonl"
+        entry = {
+            "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "event": event,
+            "conversationId": payload.get("conversationId") or payload.get("sessionId") or "",
+            "payload_keys": sorted(list(payload.keys())),
+            "payload_modelName": payload.get("modelName"),
+            "active_model": active_model,
+            "mode": mode,
+            "injected_chars": injected_chars,
+        }
+        with open(trace_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+
 def handle_pre_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     """Handle Antigravity `PreInvocation` hook event."""
     transcript_path = str(payload.get("transcriptPath") or "")
@@ -254,20 +299,26 @@ def handle_pre_invocation(payload: dict[str, Any]) -> dict[str, Any]:
 
     # Stay completely silent on Gemini 4 Argon (0 token overhead)
     if is_argon_model(active_model):
+        log_hook_trace("PreInvocation", payload, active_model, "bypass_argon", 0)
         return {}
 
     turn_state = analyze_current_turn(steps)
 
     if turn_state["is_turn_start"]:
+        mode = "turn_start"
         msg = PROMPT_TURN_START
     elif turn_state["last_tool_errored"]:
+        mode = "error_recovery"
         msg = PROMPT_ERROR_RECOVERY
     elif turn_state["unverified_files"]:
+        mode = "unverified_edits"
         files_str = ", ".join(turn_state["unverified_files"][:5])
         msg = PROMPT_MID_TURN_UNVERIFIED_EDITS.format(files=files_str)
     else:
+        mode = "mid_turn"
         msg = PROMPT_MID_TURN_CLEAN
 
+    log_hook_trace("PreInvocation", payload, active_model, mode, len(msg))
     return {
         "injectSteps": [
             {
