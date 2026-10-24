@@ -148,7 +148,8 @@ def detect_active_model(payload: dict[str, Any], steps: list[dict[str, Any]]) ->
         except Exception:
             pass
 
-    # Scan recent turn-trigger steps in reverse for explicit model selection changes or tags
+    # Only check the MOST RECENT turn-trigger step for explicit bypass tags,
+    # and only fall back to scanning `<USER_SETTINGS_CHANGE>` if payload.modelName is empty.
     for step in reversed(steps):
         if is_turn_trigger_step(step):
             content = str(step.get("content") or "")
@@ -160,16 +161,14 @@ def detect_active_model(payload: dict[str, Any], steps: list[dict[str, Any]]) ->
                     except Exception:
                         pass
                 return "argon-bypass"
-            if "[AGY_MODEL: ARGON" in content:
-                return "Gemini 4 Argon"
-            if "[AGY_MODEL: FLASH" in content:
-                return "Gemini Flash"
-            matches = re.findall(
-                r"changed setting `Model Selection` from .+ to ([^\.\n]+)",
-                content,
-            )
-            if matches:
-                return matches[-1].strip()
+            if not model_name:
+                matches = re.findall(
+                    r"changed setting `Model Selection` from .+ to ([^\.\n]+)",
+                    content,
+                )
+                if matches:
+                    return matches[-1].strip()
+            break
     return model_name
 
 
