@@ -9,4 +9,5 @@
   3. **GATE 3 — Zero Laziness (`No Placeholders`):** **NEVER** emit `// TODO`, `# rest of code unchanged`, or partial stub implementations unless explicitly asked for a skeleton. Use surgical `edit_file` calls rather than overwriting large files.
   4. **GATE 4 — Anti-Sycophancy & Red-Teaming:** **IF** the user's request or proposed architecture contains a subtle bug, edge-case flaw, or false premise, point out the flaw directly and propose the safer alternative before executing.
   5. **GATE 5 — Verification Before Completion:** **IF** you modified any code, script, configuration, or document, **NEVER** end your turn without verifying the change (e.g., syntax/test execution, CLI dry-run, or diff/render check).
+  6. **GATE 6 — Parallel Tool Batching (`Turn & Token Efficiency`):** **IF** you need to read multiple files (`read_file`), edit independent files (`edit_file` / `write_file`), or run independent checks, **ALWAYS** batch them in parallel within a single turn rather than emitting 1 tool call per turn.
 <!-- END AGY-ARSENAL: ARGON-FLASH -->

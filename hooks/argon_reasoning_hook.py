@@ -52,8 +52,8 @@ MANDATORY PRE-ACTION THINKING GATE (Argon-4 Rigor Mode):
 Before emitting ANY tool call or response, work through these 4 steps inside your `<thinking>` block:
 1. [DECOMPOSE & CONSTRAINTS]: List every explicit requirement, implicit edge case, and negative constraint from the user request and active rules.
 2. [FACT VS. ASSUMPTION]: Separate what you HAVE verified in files/schemas from what you are ASSUMING. NEVER guess file paths, APIs, CLI flags, or column names—inspect first.
-3. [RED-TEAM / DEVIL'S ADVOCATE]: Identify the #1 way your initial hypothesis or implementation could fail or miss an edge case, and design against it. If the user's premise has a flaw, state it clearly.
-4. [ZERO-LAZINESS & VERIFICATION]: Write complete, production-grade logic (no `// TODO` placeholders, no blind full-file overwrites when surgical `edit_file` applies). Plan how you will verify the result before ending your turn.
+3. [RED-TEAM / DEVIL'S ADVOCATE]: Identify the #1 way your initial hypothesis or implementation could fail or miss an edge case (e.g., Simpson's paradox, rate-vs-volume traps, security/RCE flaws), and design against it. If the user's premise has a flaw, state it clearly.
+4. [ZERO-LAZINESS, BATCHING & VERIFICATION]: Batch all independent `read_file`/`edit_file`/`write_file` calls in parallel within a single turn to minimize round-trips. Write complete, production-grade logic and verify every deliverable before ending your turn.
 </argon_reasoning_protocol>"""
 
 PROMPT_ERROR_RECOVERY = """<argon_reasoning_protocol mode="error_recovery">
@@ -66,11 +66,11 @@ The previous tool step produced an error or non-zero exit code.
 PROMPT_MID_TURN_UNVERIFIED_EDITS = """<argon_reasoning_protocol mode="unverified_edits">
 VERIFICATION GATE ACTIVE — Unverified file modification(s) in this turn: {files}
 - In `<thinking>`, state in 1 sentence what the last tool output proved vs. what remains unverified.
-- DO NOT end your turn (`NO_TOOL_CALL`) until you have verified your changes (via execution, syntax/lint check, or inspecting the resulting state).
+- Batch independent tool calls in parallel, and DO NOT end your turn (`NO_TOOL_CALL`) until you have verified your changes.
 </argon_reasoning_protocol>"""
 
 PROMPT_MID_TURN_CLEAN = """<argon_reasoning_protocol mode="mid_turn">
-STEP ANCHOR: In `<thinking>`, state in 1 concise sentence what the previous tool output proved and what specific question the next action answers. Never guess uninspected code/data.
+STEP ANCHOR: In `<thinking>`, state in 1 concise sentence what the previous tool output proved and what specific question the next action answers. Batch independent tool calls in parallel and never guess uninspected data.
 </argon_reasoning_protocol>"""
 
 
@@ -127,11 +127,38 @@ def detect_active_model(payload: dict[str, Any], steps: list[dict[str, Any]]) ->
     or recent `<USER_SETTINGS_CHANGE>` tags in the transcript.
     """
     model_name = str(payload.get("modelName") or "").strip()
+    conv_id = str(payload.get("conversationId") or payload.get("sessionId") or "").strip()
+    bypass_list_file = "/tmp/agy_hook_bypass_convs.txt"
+    bypass_next_file = "/tmp/agy_hook_bypass_next"
+
+    if conv_id and os.path.isfile(bypass_list_file):
+        try:
+            with open(bypass_list_file, "r", encoding="utf-8") as f:
+                if conv_id in {line.strip() for line in f if line.strip()}:
+                    return "argon-bypass"
+        except Exception:
+            pass
+
+    if conv_id and "argon" not in model_name.lower() and os.path.isfile(bypass_next_file):
+        try:
+            os.remove(bypass_next_file)
+            with open(bypass_list_file, "a", encoding="utf-8") as f:
+                f.write(conv_id + "\n")
+            return "argon-bypass"
+        except Exception:
+            pass
+
     # Scan recent turn-trigger steps in reverse for explicit model selection changes or tags
     for step in reversed(steps):
         if is_turn_trigger_step(step):
             content = str(step.get("content") or "")
             if "[AGY_HOOK_BYPASS]" in content:
+                if conv_id:
+                    try:
+                        with open(bypass_list_file, "a", encoding="utf-8") as f:
+                            f.write(conv_id + "\n")
+                    except Exception:
+                        pass
                 return "argon-bypass"
             if "[AGY_MODEL: ARGON" in content:
                 return "Gemini 4 Argon"
@@ -269,8 +296,8 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def log_hook_trace(event: str, payload: dict[str, Any], active_model: str, mode: str, injected_chars: int) -> None:
-    """Append a lightweight diagnostic trace entry to `/tmp/agy_argon_hook_trace.jsonl` when `AGY_HOOK_TRACE=1`."""
-    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes"):
+    """Append a lightweight diagnostic trace entry to `/tmp/agy_argon_hook_trace.jsonl` when `AGY_HOOK_TRACE=1` or `/tmp/agy_enable_hook_trace` exists."""
+    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes") and not os.path.exists("/tmp/agy_enable_hook_trace"):
         return
     try:
         import datetime
