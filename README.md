@@ -60,17 +60,33 @@ When `hooks/argon_reasoning_hook.py` runs before a Gemini Flash model invocation
 
 ---
 
+## `/` Slash Commands in Antigravity Chat
+
+In addition to running **100% automatically** in the background whenever you select **Gemini Flash (3.7 / 3.8 Medium or High)** from the model dropdown, `agy-arsenal` installs two first-class `/` slash-command skills into `~/.gemini/config/skills/` that you can type directly in the Antigravity chat input box:
+
+| Slash Command | When to Use It | What It Does |
+| :--- | :--- | :--- |
+| **`/argon-flash <task>`** | You want to run a task with Argon-Boosted Flash—**even if your main chat is currently set to Argon 4**. | - **If your main chat is on Argon 4**: Automatically defines and spawns an autonomous `argon-flash-worker` subagent (`Model: "flash"`, `[EFFORT: HIGH]`) to do all the heavy coding, `.pptx`, `.docx`, or debugging in the background at **25x lower quota cost**.<br>- **If your main chat is already on Flash**: Enforces the full 6-Gate Argon-4 Execution Protocol directly in the current session. |
+| **`/argon-architect <task>`** | Complex multi-file architecture, subtle bug hunting, or executive deliverable packs. | - **Step 1 (1-Turn Argon Blueprint)**: Reads all target files in 1 parallel batch, red-teams the requirements, and writes an exact **Implementation Manifest** (`File + Line Numbers + Diff Spec + Test Command`).<br>- **Step 2 (Flash Workhorse Handoff)**: Automatically delegates the blueprint to a `Model: "flash"` subagent to execute and verify. |
+
+---
+
 ## Repository Structure
 
 ```text
 agy-arsenal/
+├── plugin.json                          # Native Antigravity plugin manifest
 ├── hooks/
 │   └── argon_reasoning_hook.py          # 3-State Adaptive PreInvocation + Stop hook (0 dependencies)
 ├── rules/
-│   └── GEMINI.argon-flash.md            # Algorithmic IF/THEN/NEVER execution gates merged into GEMINI.md
+│   └── GEMINI.argon-flash.md            # 6 Algorithmic IF/THEN/NEVER execution gates merged into GEMINI.md
 ├── skills/
+│   ├── argon-flash/
+│   │   └── SKILL.md                     # `/argon-flash` slash command (direct or subagent launcher)
+│   ├── argon-architect/
+│   │   └── SKILL.md                     # `/argon-architect` slash command (1-turn blueprint -> Flash worker)
 │   └── argon-architect-mode/
-│       └── SKILL.md                     # On-demand 1-Turn Argon Architect -> Flash Workhorse skill
+│       └── SKILL.md                     # Legacy/full skill alias
 ├── install.py                           # Cross-OS idempotent installer, status checker, and uninstaller
 └── README.md
 ```

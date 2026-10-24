@@ -30,8 +30,9 @@ HOOKS_JSON_PATH = CONFIG_DIR / "hooks.json"
 RULES_SRC = REPO_ROOT / "rules" / "GEMINI.argon-flash.md"
 GEMINI_MD_PATH = CONFIG_DIR / "GEMINI.md"
 
-SKILL_SRC_DIR = REPO_ROOT / "skills" / "argon-architect-mode"
-SKILL_DST_DIR = CONFIG_DIR / "skills" / "argon-architect-mode"
+SKILLS_SRC_ROOT = REPO_ROOT / "skills"
+SKILLS_DST_ROOT = CONFIG_DIR / "skills"
+SKILL_NAMES = ["argon-flash", "argon-architect", "argon-architect-mode"]
 
 HOOK_KEY = "argon-reasoning-booster"
 BEGIN_MARKER = "<!-- BEGIN AGY-ARSENAL: ARGON-FLASH -->"
@@ -123,11 +124,16 @@ def install_rules() -> None:
 
 
 def install_skill() -> None:
-    SKILL_DST_DIR.mkdir(parents=True, exist_ok=True)
-    for item in SKILL_SRC_DIR.iterdir():
-        if item.is_file():
-            shutil.copy2(item, SKILL_DST_DIR / item.name)
-    print(f"  [OK] Installed skill `argon-architect-mode` to {SKILL_DST_DIR}")
+    for sname in SKILL_NAMES:
+        src_dir = SKILLS_SRC_ROOT / sname
+        dst_dir = SKILLS_DST_ROOT / sname
+        if not src_dir.is_dir():
+            continue
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for item in src_dir.iterdir():
+            if item.is_file():
+                shutil.copy2(item, dst_dir / item.name)
+        print(f"  [OK] Installed slash-command skill `/{sname}` to {dst_dir}")
 
 
 def uninstall_all() -> None:
@@ -155,9 +161,11 @@ def uninstall_all() -> None:
             GEMINI_MD_PATH.write_text(cleaned, encoding="utf-8")
             print(f"  [OK] Removed Argon-Flash rule block from {GEMINI_MD_PATH}")
 
-    if SKILL_DST_DIR.exists():
-        shutil.rmtree(SKILL_DST_DIR)
-        print(f"  [OK] Removed skill directory {SKILL_DST_DIR}")
+    for sname in SKILL_NAMES:
+        dst_dir = SKILLS_DST_ROOT / sname
+        if dst_dir.exists():
+            shutil.rmtree(dst_dir)
+            print(f"  [OK] Removed skill directory {dst_dir}")
 
     print("Uninstall complete.")
 
@@ -188,7 +196,9 @@ def print_status() -> None:
         text = GEMINI_MD_PATH.read_text(encoding="utf-8")
         rules_installed = BEGIN_MARKER in text and END_MARKER in text
     print(f"GEMINI.md Rules   : {'INSTALLED' if rules_installed else 'MISSING'} ({GEMINI_MD_PATH})")
-    print(f"Architect Skill   : {'INSTALLED' if (SKILL_DST_DIR / 'SKILL.md').is_file() else 'MISSING'} ({SKILL_DST_DIR})")
+    for sname in SKILL_NAMES:
+        sfile = SKILLS_DST_ROOT / sname / "SKILL.md"
+        print(f"Slash Skill /{sname:<19}: {'INSTALLED' if sfile.is_file() else 'MISSING'} ({sfile.parent})")
 
 
 def main() -> None:
