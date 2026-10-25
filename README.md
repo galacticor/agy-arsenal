@@ -12,6 +12,7 @@ Make **Gemini 3.7 / 3.8 Flash (Medium & High)** think, decompose, verify, and fo
 | **Impulsive / Shallow First-Pass Thinking** | Flash optimizes for low latency—jumping straight to tool calls or code on its first hunch without checking files or edge cases. | Forces an XML-framed **4-Step Argon Thinking Gate** (`[DECOMPOSE]`, `[FACT VS. ASSUMPTION]`, `[RED-TEAM]`, `[VERIFICATION]`) inside Flash's native `<thinking>` block. |
 | **Over-Planning on Tool Loops** | Naive `PreInvocation` hooks inject a huge planning prompt before every `read_file` step inside a turn. | **3-State Adaptive Transcript Tailing**: Inspects the last 64KB of `transcript.jsonl` in `<2ms` to distinguish **Turn Start** vs. **Error Recovery** vs. **Mid-Turn Tool Loop**. |
 | **Premature Stopping ("Fake Done")** | Flash edits a file and immediately ends its turn without testing or verifying syntax/output. | Tracks unverified file edits in the current turn and warns Flash (or mechanically blocks premature stop in `split-plane` mode). |
+| **Progressive Disclosure Blindness ("Shortcut Bias")** | Because Flash knows basic `python-pptx` / `python-docx` syntax from pre-training, it skips reading `SKILL.md` (`pptx`, `executive-slides`, `docx`) and produces generic stacked-box templates instead of consulting-grade layouts. | **`GATE 7` (`unread_skills_gate` + `<argon_pptx_design_mandate>`)**: Detects `.pptx`/`.docx`/`.xlsx` tasks, forces Flash to read the matching `SKILL.md` in Turn 1, and injects McKinsey Action Title, asymmetric 2-column grid, and `Cambria`/`Calibri` table formatting mandates. |
 | **Argon Quota Waste** | Running rules/hooks when you *are* using Argon 4 wastes tokens. | **Auto-Bypasses Argon 4**: Detects when `"Gemini 4 Argon"` is selected and outputs `{}` (0 tokens added). |
 
 ---
@@ -46,15 +47,17 @@ python3 install.py --uninstall
 
 ---
 
-## How the 3-State Adaptive `PreInvocation` Engine Works
+## How the Adaptive `PreInvocation` Engine Works
 
-When `hooks/argon_reasoning_hook.py` runs before a Gemini Flash model invocation, it reads the tail of the active `transcript.jsonl` and selects one of **3 precision prompts**:
+When `hooks/argon_reasoning_hook.py` runs before a Gemini Flash model invocation, it reads the tail of the active `transcript.jsonl` and selects the right precision prompt:
 
-1. **State 1 — `turn_start` (User just submitted a prompt)**
-   Injects the full 4-step `<argon_reasoning_protocol mode="turn_start">` rubric forcing Flash to decompose requirements, separate verified facts from assumptions, red-team its own plan, and plan verification.
+1. **State 1 — `turn_start` / `turn_start+pptx_design` (User just submitted a prompt)**
+   Injects the 5-step `<argon_reasoning_protocol mode="turn_start">` rubric forcing Flash to decompose requirements, separate verified facts from assumptions, red-team its own plan, batch `read_file` on required `SKILL.md` files (`GATE 7`), and batch independent tool calls (`GATE 6`). When `.pptx` / presentation creation is detected, it also appends `<argon_pptx_design_mandate>`.
 2. **State 2 — `error_recovery` (Last tool call returned a non-zero exit code / Traceback)**
    Injects `<argon_reasoning_protocol mode="error_recovery">`, forbidding blind flag guessing or superficial symptom patches and requiring a 1-sentence Root Cause Analysis in `<thinking>` first.
-3. **State 3 — `unverified_edits` / `mid_turn` (Mid-turn tool iteration)**
+3. **State 3 — `unread_skills_gate` (Domain skill required by prompt has not yet been read)**
+   If the prompt involves `.pptx`, `.docx`, or `.xlsx` and Flash hasn't called `read_file` on the matching `SKILL.md`, blocks generic defaults and instructs Flash to batch-read the required `SKILL.md` files immediately.
+4. **State 4 — `unverified_edits` / `mid_turn` (Mid-turn tool iteration)**
    - If files were modified in the current turn (`edit_file` / `write_file`) and not yet verified via `run_command` or `read_file`, injects a compact reminder listing the exact unverified filenames.
    - Otherwise, injects a 1-sentence step anchor (~28 tokens) so Flash doesn't over-plan during routine file reads.
 
@@ -79,7 +82,7 @@ agy-arsenal/
 ├── hooks/
 │   └── argon_reasoning_hook.py          # 3-State Adaptive PreInvocation + Stop hook (0 dependencies)
 ├── rules/
-│   └── GEMINI.argon-flash.md            # 6 Algorithmic IF/THEN/NEVER execution gates merged into GEMINI.md
+│   └── GEMINI.argon-flash.md            # 7 Algorithmic IF/THEN/NEVER execution gates merged into GEMINI.md
 ├── skills/
 │   ├── argon-flash/
 │   │   └── SKILL.md                     # `/argon-flash` slash command (direct or subagent launcher)
