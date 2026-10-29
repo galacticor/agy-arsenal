@@ -14,6 +14,7 @@ When the user invokes `/argon-flash` (or asks to run a task using the Argon-Boos
 
 To save ~95% of your weekly Argon 4 quota while retaining 100% Argon-grade output quality:
 
+0. **Quota Break-Even Gate (`<= 2` Tool Turns)**: If the request is a trivial 1-file edit (`<30` lines) or quick read-only lookup that takes `<= 2` tool turns, execute it directly without spawning a subagent. Otherwise, proceed to Step 1.
 1. **Do NOT execute multi-turn file creation, coding loops, or `.pptx`/`.docx` builds directly inside the Argon 4 parent turn.**
 2. **Define the `argon-flash-worker` Subagent** (if not already defined in this conversation) via `define_subagent`:
    - `Name`: `"argon-flash-worker"`
@@ -31,13 +32,17 @@ To save ~95% of your weekly Argon 4 quota while retaining 100% Argon-grade outpu
      5. [SURGICAL EDITS]: Use edit_file instead of full-file overwrites. Zero placeholders/TODOs.
      6. [VERIFY BEFORE COMPLETION]: Run tests, syntax checks, or office_view_hook.py --summary-only before finishing.
      7. [MANDATORY SKILL & DESIGN DISCOVERY]: Before generating any .pptx, .docx, .xlsx, or UI deliverable, batch `read_file` on the matching SKILL.md (`pptx/SKILL.md` + `executive-slides/SKILL.md`, `docx/SKILL.md`, `xlsx/SKILL.md`, `frontend-design/SKILL.md`) in Turn 1. For .pptx decks, strictly use McKinsey Action Titles, asymmetric 2-column RECTANGLE grids, explicit Cambria/Calibri fonts, right-aligned numeric table columns, and a Total/Avg summary row.
+     8. [COMPLETION RECEIPT]: Return a concise summary containing (a) modified file paths + line ranges, (b) exact verification command + exit code + PASS/FAIL summary, and (c) key analytical findings.
      ```
 3. **Invoke the Subagent** via `invoke_subagent`:
    - `TypeName`: `"argon-flash-worker"`
    - `Role`: `"Argon-Boosted Flash Executor"`
    - `Model`: `"flash"`
-   - `Prompt`: Prefix with `[EFFORT: HIGH — Execute with full 6-Gate Argon-4 rigor and parallel tool batching]` followed by the clear task specification and verification criteria.
-4. **Stop calling tools and wait** for the subagent's completion notification, then present the verified deliverables to the user.
+   - `Prompt`: Prefix with `[EFFORT: HIGH — Execute with full 6-Gate Argon-4 rigor, parallel tool batching, and return a Completion Receipt]` followed by the clear task specification and verification criteria.
+4. **Stop calling tools and wait** for the subagent's completion notification.
+5. **Risk-Tiered Sign-Off**:
+   - **Default (`0` Tool Calls)**: Never re-run passing `run_command` tests. If the **Completion Receipt** confirms deterministic tests passed, present the deliverables immediately in `0` tool calls.
+   - **Complex Logic Spot-Check**: For complex algorithms, security/concurrency logic, or ambiguous receipts, you may run a single batched `read_file` with `StartLine`/`EndLine` on the modified line ranges only. If a fix is needed, message the existing subagent via `send_message` (or apply directly if it's a `<10`-line 1-edit tweak).
 
 ---
 

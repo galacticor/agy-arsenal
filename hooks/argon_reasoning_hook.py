@@ -32,6 +32,7 @@ import os
 import re
 import sys
 from pathlib import Path
+import tempfile
 from typing import Any
 
 CODE_EXTENSIONS = (
@@ -57,10 +58,10 @@ Before emitting ANY tool call or response, work through these 5 steps inside you
 5. [ZERO-LAZINESS, BATCHING & VERIFICATION]: Batch all independent `read_file`/`edit_file`/`write_file` calls in parallel within a single turn to minimize round-trips. Write complete, production-grade logic and verify every deliverable before ending your turn.
 </argon_reasoning_protocol>"""
 
-PROMPT_PPTX_DESIGN_ADDON = """
+PROMPT_PPTX_DESIGN_ADDON = f"""
 <argon_pptx_design_mandate>
 MANDATORY EXECUTIVE SLIDE DESIGN GATE (Closing the Argon-vs-Flash Design Gap):
-1. READ SKILLS FIRST: Call `read_file` on `/Users/widyantohd/.gemini/config/skills/pptx/SKILL.md` AND `/Users/widyantohd/.gemini/config/skills/executive-slides/SKILL.md` in Turn 1 before writing any `.pptx` code.
+1. READ SKILLS FIRST: Call `read_file` on `{Path.home() / ".gemini" / "config" / "skills" / "pptx" / "SKILL.md"}` AND `{Path.home() / ".gemini" / "config" / "skills" / "executive-slides" / "SKILL.md"}` in Turn 1 before writing any `.pptx` code.
 2. MCKINSEY ACTION TITLES: Every slide title MUST state a quantified insight/takeaway (e.g. "Region West Drives 62.1% ($6.00M) of Q3 Annualized Revenue Leakage Despite 2.50% Churn"), paired with an uppercase category kicker above it. NEVER use generic topic labels ("Executive Summary", "Regional Analysis").
 3. ASYMMETRIC CONSULTING GRIDS (NO STACKED ROUNDED BOXES): Use crisp `RECTANGLE` cards (`1pt` subtle border, light `#F8FAFC` canvas) in asymmetric 2-column splits (e.g., `7.35"` main card + `4.58"` dark navy callout card, or `7.90"` table + `4.03"` diagnostic sidebar). NEVER stack 3+ full-width `ROUNDED_RECTANGLE` horizontal bands across `11.73"`.
 4. TYPOGRAPHY & TABLE DISCIPLINE: Explicitly set `font.name = "Cambria"` (headings/KPI numbers) and `"Calibri"` (body/tables) on every run (`space_after = Pt(4)`). Right-align all numeric/currency table columns (`PP_ALIGN.RIGHT`) and ALWAYS include a bold `Total / Avg` bottom summary row.
@@ -144,8 +145,9 @@ def detect_active_model(payload: dict[str, Any], steps: list[dict[str, Any]]) ->
     """
     model_name = str(payload.get("modelName") or "").strip()
     conv_id = str(payload.get("conversationId") or payload.get("sessionId") or "").strip()
-    bypass_list_file = "/tmp/agy_hook_bypass_convs.txt"
-    bypass_next_file = "/tmp/agy_hook_bypass_next"
+    tmp_dir = Path(tempfile.gettempdir())
+    bypass_list_file = str(tmp_dir / "agy_hook_bypass_convs.txt")
+    bypass_next_file = str(tmp_dir / "agy_hook_bypass_next")
 
     if conv_id and os.path.isfile(bypass_list_file):
         try:
@@ -349,12 +351,13 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def log_hook_trace(event: str, payload: dict[str, Any], active_model: str, mode: str, injected_chars: int) -> None:
-    """Append a lightweight diagnostic trace entry to `/tmp/agy_argon_hook_trace.jsonl` when `AGY_HOOK_TRACE=1` or `/tmp/agy_enable_hook_trace` exists."""
-    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes") and not os.path.exists("/tmp/agy_enable_hook_trace"):
+    """Append a lightweight diagnostic trace entry to `<tempdir>/agy_argon_hook_trace.jsonl` when `AGY_HOOK_TRACE=1` or `<tempdir>/agy_enable_hook_trace` exists."""
+    tmp_dir = Path(tempfile.gettempdir())
+    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes") and not (tmp_dir / "agy_enable_hook_trace").exists():
         return
     try:
         import datetime
-        trace_path = "/tmp/agy_argon_hook_trace.jsonl"
+        trace_path = str(tmp_dir / "agy_argon_hook_trace.jsonl")
         entry = {
             "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "event": event,
