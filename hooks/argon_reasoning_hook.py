@@ -31,9 +31,12 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Any
+
+SKILLS_DIR = (Path.home() / ".gemini" / "config" / "skills").as_posix()
+TMP_DIR = Path(tempfile.gettempdir())
 
 CODE_EXTENSIONS = (
     ".py", ".js", ".ts", ".tsx", ".jsx", ".swift", ".go", ".rs",
@@ -61,7 +64,7 @@ Before emitting ANY tool call or response, work through these 5 steps inside you
 PROMPT_PPTX_DESIGN_ADDON = f"""
 <argon_pptx_design_mandate>
 MANDATORY EXECUTIVE SLIDE DESIGN GATE (Closing the Argon-vs-Flash Design Gap):
-1. READ SKILLS FIRST: Call `read_file` on `{Path.home() / ".gemini" / "config" / "skills" / "pptx" / "SKILL.md"}` AND `{Path.home() / ".gemini" / "config" / "skills" / "executive-slides" / "SKILL.md"}` in Turn 1 before writing any `.pptx` code.
+1. READ SKILLS FIRST: Call `read_file` on `{SKILLS_DIR}/pptx/SKILL.md` AND `{SKILLS_DIR}/executive-slides/SKILL.md` in Turn 1 before writing any `.pptx` code.
 2. MCKINSEY ACTION TITLES: Every slide title MUST state a quantified insight/takeaway (e.g. "Region West Drives 62.1% ($6.00M) of Q3 Annualized Revenue Leakage Despite 2.50% Churn"), paired with an uppercase category kicker above it. NEVER use generic topic labels ("Executive Summary", "Regional Analysis").
 3. ASYMMETRIC CONSULTING GRIDS (NO STACKED ROUNDED BOXES): Use crisp `RECTANGLE` cards (`1pt` subtle border, light `#F8FAFC` canvas) in asymmetric 2-column splits (e.g., `7.35"` main card + `4.58"` dark navy callout card, or `7.90"` table + `4.03"` diagnostic sidebar). NEVER stack 3+ full-width `ROUNDED_RECTANGLE` horizontal bands across `11.73"`.
 4. TYPOGRAPHY & TABLE DISCIPLINE: Explicitly set `font.name = "Cambria"` (headings/KPI numbers) and `"Calibri"` (body/tables) on every run (`space_after = Pt(4)`). Right-align all numeric/currency table columns (`PP_ALIGN.RIGHT`) and ALWAYS include a bold `Total / Avg` bottom summary row.
@@ -145,9 +148,8 @@ def detect_active_model(payload: dict[str, Any], steps: list[dict[str, Any]]) ->
     """
     model_name = str(payload.get("modelName") or "").strip()
     conv_id = str(payload.get("conversationId") or payload.get("sessionId") or "").strip()
-    tmp_dir = Path(tempfile.gettempdir())
-    bypass_list_file = str(tmp_dir / "agy_hook_bypass_convs.txt")
-    bypass_next_file = str(tmp_dir / "agy_hook_bypass_next")
+    bypass_list_file = str(TMP_DIR / "agy_hook_bypass_convs.txt")
+    bypass_next_file = str(TMP_DIR / "agy_hook_bypass_next")
 
     if conv_id and os.path.isfile(bypass_list_file):
         try:
@@ -239,7 +241,7 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
             break
 
     trigger_text = str(steps[last_user_idx].get("content") or "").lower() if last_user_idx >= 0 else ""
-    skills_root = os.path.expanduser("~/.gemini/config/skills")
+    skills_root = SKILLS_DIR
     required_skills: list[str] = []
 
     if any(k in trigger_text for k in (".pptx", "python-pptx", "slide deck", "executive readout", "presentation")):
@@ -256,6 +258,9 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
         if os.path.isfile(sp):
             required_skills.append(sp)
 
+    def _norm_path(p: str) -> str:
+        return os.path.normcase(os.path.normpath(os.path.abspath(os.path.expanduser(p))))
+
     # Scan all steps in the transcript to see which SKILL.md files have already been read in this conversation
     read_paths: set[str] = set()
     for step in steps:
@@ -266,10 +271,10 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
                     if isinstance(tc, dict) and tc.get("name") in ("read_file", "view_file"):
                         p = extract_tool_arg_path(tc.get("args") or {})
                         if p:
-                            read_paths.add(os.path.abspath(os.path.expanduser(p)))
+                            read_paths.add(_norm_path(p))
 
     result["unread_required_skills"] = [
-        sp for sp in required_skills if os.path.abspath(sp) not in read_paths
+        sp for sp in required_skills if _norm_path(sp) not in read_paths
     ]
 
     turn_steps = steps[last_user_idx + 1 :] if last_user_idx >= 0 else steps
@@ -352,12 +357,12 @@ def analyze_current_turn(steps: list[dict[str, Any]]) -> dict[str, Any]:
 
 def log_hook_trace(event: str, payload: dict[str, Any], active_model: str, mode: str, injected_chars: int) -> None:
     """Append a lightweight diagnostic trace entry to `<tempdir>/agy_argon_hook_trace.jsonl` when `AGY_HOOK_TRACE=1` or `<tempdir>/agy_enable_hook_trace` exists."""
-    tmp_dir = Path(tempfile.gettempdir())
-    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes") and not (tmp_dir / "agy_enable_hook_trace").exists():
+    enable_flag = TMP_DIR / "agy_enable_hook_trace"
+    if os.environ.get("AGY_HOOK_TRACE", "").strip() not in ("1", "true", "yes") and not enable_flag.exists():
         return
     try:
         import datetime
-        trace_path = str(tmp_dir / "agy_argon_hook_trace.jsonl")
+        trace_path = TMP_DIR / "agy_argon_hook_trace.jsonl"
         entry = {
             "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "event": event,
