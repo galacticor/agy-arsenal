@@ -52,13 +52,13 @@ VERIFY_TOOLS = {"run_command", "read_file", "view_file", "grep_search"}
 # ---------------------------------------------------------------------------
 
 PROMPT_TURN_START = """<argon_reasoning_protocol mode="turn_start">
-MANDATORY PRE-ACTION THINKING GATE (Argon-4 Rigor Mode):
-Before emitting ANY tool call or response, work through these 5 steps inside your `<thinking>` block:
-1. [DECOMPOSE & CONSTRAINTS]: List every explicit requirement, implicit edge case, and negative constraint from the user request and active rules.
-2. [FACT VS. ASSUMPTION]: Separate what you HAVE verified in files/schemas from what you are ASSUMING. NEVER guess file paths, APIs, CLI flags, or column names—inspect first.
-3. [RED-TEAM / DEVIL'S ADVOCATE]: Identify the #1 way your initial hypothesis or implementation could fail or miss an edge case (e.g., Simpson's paradox, rate-vs-volume traps, security/RCE flaws), and design against it. If the user's premise has a flaw, state it clearly.
+MANDATORY PRE-ACTION THINKING GATE (Argon-4 / Staff Principal Rigor Mode):
+Optimize for first-time architectural correctness. Before emitting ANY tool call or code edit, work through these 5 steps inside your hidden `<thinking>` block (do NOT dump raw `<plan>` blocks into visible chat):
+1. [DECOMPOSE, INVARIANTS & BLAST RADIUS]: List every explicit requirement and negative constraint. Identify what exact state or invariant is violated, and which upstream/downstream callers, files, schemas, or types are affected.
+2. [ZERO-GUESSING & CALLER INSPECTION]: Separate what you HAVE verified in files/schemas from what you are ASSUMING. NEVER guess file paths, function signatures, library methods, CLI flags, or column names—inspect the target file and its callers first.
+3. [SELF-ADVERSARIAL & EDGE-CASE AUDIT]: Critique your own design ("Where would this fail in production or under scale/malformed input?"). Explicitly check for division-by-zero, null/None/NaN propagation, empty partitions, race conditions, memory blowups, Simpson's paradox, and rate-vs-volume traps. Fix any flaw before writing code, and point out any flawed premise in the user request.
 4. [SKILL & DESIGN-SYSTEM DISCOVERY (NO SHORTCUT BIAS)]: Check `<skills>` for matching domain skills (`pptx`, `executive-slides`, `minimal-slides`, `docx`, `xlsx`, `frontend-design`, etc.). NEVER skip reading `SKILL.md` just because you know basic library syntax—batch `read_file` on the relevant `SKILL.md` in Turn 1 BEFORE writing any generator script.
-5. [ZERO-LAZINESS, BATCHING & VERIFICATION]: Batch all independent `read_file`/`edit_file`/`write_file` calls in parallel within a single turn to minimize round-trips. Write complete, production-grade logic and verify every deliverable before ending your turn.
+5. [ZERO-LAZINESS, BATCHING & VERIFICATION]: Batch all independent `read_file`/`edit_file`/`write_file` calls in parallel within a single turn to minimize round-trips. Write complete, surgical production logic and verify every deliverable before ending your turn.
 </argon_reasoning_protocol>"""
 
 PROMPT_PPTX_DESIGN_ADDON = f"""

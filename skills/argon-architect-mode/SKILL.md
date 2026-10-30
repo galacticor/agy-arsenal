@@ -27,11 +27,11 @@ If the user asks for a **plan, blueprint, or spec** to execute later on Gemini F
 
 When executing a complex task on **Gemini Flash (3.7 / 3.8 Medium or High)**:
 
-### Step 1 — Pre-Flight `<thinking>` Audit
+### Step 1 — Pre-Flight `<thinking>` Audit (Staff Principal / Argon-4 Rigor)
 Before calling your first mutation tool (`edit_file` / `write_file`), explicitly verify in `<thinking>`:
-- `[DECOMPOSE]`: Have I listed every requirement and negative constraint?
-- `[VERIFY]`: Have I read the exact lines around every target edit?
-- `[RED-TEAM]`: What breaks if inputs are empty, `None`/`null`, concurrent, or out-of-bounds?
+- `[DECOMPOSE & INVARIANTS]`: Have I listed every requirement, negative constraint, and state invariant?
+- `[ZERO-GUESSING & BLAST RADIUS]`: Have I read the exact lines around every target edit AND inspected upstream/downstream callers, shared types, and schemas?
+- `[SELF-ADVERSARIAL & EDGE-CASE AUDIT]`: Where would this fail in production or under scale? Have I guarded against division-by-zero, `null`/`None`/`NaN` propagation, empty partitions, race conditions, and memory blowups?
 
 ### Step 2 — Incremental Surgical Execution
 - Prefer surgical `edit_file` blocks over full-file `write_file` overwrites.
