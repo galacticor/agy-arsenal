@@ -6,7 +6,7 @@ Works on macOS, Linux, and Windows.
 Safely merges:
   1. `hooks/argon_reasoning_hook.py` -> `~/.gemini/config/argon_reasoning_hook.py` + `~/.gemini/config/hooks.json`
   2. `rules/GEMINI.argon-flash.md`   -> `~/.gemini/config/GEMINI.md` (via idempotent HTML marker comments)
-  3. `skills/argon-architect-mode`   -> `~/.gemini/config/skills/argon-architect-mode/SKILL.md`
+  3. `skills/apex-*`                 -> `~/.gemini/config/skills/apex-{think,exec,architect}/SKILL.md`
 """
 
 from __future__ import annotations
@@ -32,7 +32,8 @@ GEMINI_MD_PATH = CONFIG_DIR / "GEMINI.md"
 
 SKILLS_SRC_ROOT = REPO_ROOT / "skills"
 SKILLS_DST_ROOT = CONFIG_DIR / "skills"
-SKILL_NAMES = ["argon-flash", "argon-architect", "argon-architect-mode"]
+SKILL_NAMES = ["apex-think", "apex-exec", "apex-architect"]
+LEGACY_SKILL_NAMES = ["argon-flash", "argon-architect", "argon-architect-mode"]
 
 HOOK_KEY = "argon-reasoning-booster"
 BEGIN_MARKER = "<!-- BEGIN AGY-ARSENAL: ARGON-FLASH -->"
@@ -124,6 +125,11 @@ def install_rules() -> None:
 
 
 def install_skill() -> None:
+    for legacy in LEGACY_SKILL_NAMES:
+        legacy_dir = SKILLS_DST_ROOT / legacy
+        if legacy_dir.exists():
+            shutil.rmtree(legacy_dir)
+            print(f"  [OK] Removed legacy skill directory {legacy_dir}")
     for sname in SKILL_NAMES:
         src_dir = SKILLS_SRC_ROOT / sname
         dst_dir = SKILLS_DST_ROOT / sname
@@ -161,7 +167,7 @@ def uninstall_all() -> None:
             GEMINI_MD_PATH.write_text(cleaned, encoding="utf-8")
             print(f"  [OK] Removed Argon-Flash rule block from {GEMINI_MD_PATH}")
 
-    for sname in SKILL_NAMES:
+    for sname in SKILL_NAMES + LEGACY_SKILL_NAMES:
         dst_dir = SKILLS_DST_ROOT / sname
         if dst_dir.exists():
             shutil.rmtree(dst_dir)

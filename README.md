@@ -65,12 +65,13 @@ When `hooks/argon_reasoning_hook.py` runs before a Gemini Flash model invocation
 
 ## `/` Slash Commands in Antigravity Chat
 
-In addition to running **100% automatically** in the background whenever you select **Gemini Flash (3.7 / 3.8 Medium or High)** from the model dropdown, `agy-arsenal` installs two first-class `/` slash-command skills into `~/.gemini/config/skills/` that you can type directly in the Antigravity chat input box:
+In addition to running **100% automatically** in the background whenever you select a non-frontier model (**Gemini Flash 3.7 / 3.8**, **Gemini 4 Neon / Hydrogen**) from the model dropdown, `agy-arsenal` installs three model-agnostic **`apex-*`** `/` slash-command skills into `~/.gemini/config/skills/` that you can type directly in the Antigravity chat input box:
 
 | Slash Command | When to Use It | What It Does |
 | :--- | :--- | :--- |
-| **`/argon-flash <task>`** | You want to run a task with Argon-Boosted Flash—**even if your main chat is currently set to Argon 4**. | - **If your main chat is on Argon 4**: Automatically defines and spawns an autonomous `argon-flash-worker` subagent (`Model: "flash"`, `[EFFORT: HIGH]`) to do all the heavy coding, `.pptx`, `.docx`, or debugging in the background at **25x lower quota cost**.<br>- **If your main chat is already on Flash**: Enforces the full 6-Gate Argon-4 Execution Protocol directly in the current session. |
-| **`/argon-architect <task>`** | Complex multi-file architecture, subtle bug hunting, or executive deliverable packs. | - **Step 1 (1-Turn Argon Blueprint)**: Reads all target files in 1 parallel batch, red-teams the requirements, and writes an exact **Implementation Manifest** (`File + Line Numbers + Diff Spec + Test Command`).<br>- **Step 2 (Flash Workhorse Handoff)**: Automatically delegates the blueprint to a `Model: "flash"` subagent to execute and verify. |
+| **`/apex-think <task>`** | Complex multi-file edits, SQL/analytical pipelines, concurrency, or root-cause debugging. | **Ambient Frontier Reasoning Kernel**: Enforces a mandatory `<200`-word pre-mutation `<thinking>` protocol (`[DECOMPOSE]`, `[CAUSAL_TRACE]`, `[HYPOTHESES]`, `[INVARIANTS]`, `[COUNTEREXAMPLE]`, `[CALIBRATE]` with `CONFIDENCE: 0.00–1.00`) and a hard 2-strike / `<0.70` circuit breaker to `/agentspace-advisor` (Carbon). |
+| **`/apex-exec <task>`** | Fast coding, debugging, test repair, and `.pptx`/`.docx`/`.xlsx`/UI builds—**even if your main chat is on a frontier model**. | - **On a Frontier Model**: Registers and spawns an autonomous `apex-worker` subagent (`Model: "flash"`, `[EFFORT: HIGH]`) to run execution loops at **25x lower quota cost**.<br>- **On a Non-Frontier Model**: Enforces all **7 Frontier Execution Gates** (parallel ground-truth, causal trace, hypothesis debugging, Office/UI QA, and Carbon circuit breaker) directly in-session. |
+| **`/apex-architect <task>`** | Complex multi-file architecture, subtle bug hunting, or high-blast-radius changes. | - **Stage 1 (1-Turn Falsified Blueprint)**: Batch-reads target files in Turn 1, runs an Architect `<thinking>` audit, and synthesizes a formal `<implementation_manifest>` (causal trace, line contracts, invariants, 3 edge cases, deterministic verification).<br>- **Stage 2 (Locked Worker Handoff)**: Delegates the manifest to a contract-bound `apex-worker` subagent (or self-splits locally on non-frontier models), aborting to `/agentspace-advisor` if `CONFIDENCE < 0.70` or blocked. |
 
 ---
 
@@ -84,12 +85,12 @@ agy-arsenal/
 ├── rules/
 │   └── GEMINI.argon-flash.md            # 7 Algorithmic IF/THEN/NEVER execution gates merged into GEMINI.md
 ├── skills/
-│   ├── argon-flash/
-│   │   └── SKILL.md                     # `/argon-flash` slash command (direct or subagent launcher)
-│   ├── argon-architect/
-│   │   └── SKILL.md                     # `/argon-architect` slash command (1-turn blueprint -> Flash worker)
-│   └── argon-architect-mode/
-│       └── SKILL.md                     # Legacy/full skill alias
+│   ├── apex-think/
+│   │   └── SKILL.md                     # `/apex-think` slash command (Ambient Frontier Reasoning Kernel)
+│   ├── apex-exec/
+│   │   └── SKILL.md                     # `/apex-exec` slash command (Tactical Workhorse & `apex-worker` launcher)
+│   └── apex-architect/
+│       └── SKILL.md                     # `/apex-architect` slash command (1-turn falsified blueprint -> `apex-worker`)
 ├── install.py                           # Cross-OS idempotent installer, status checker, and uninstaller
 └── README.md
 ```
