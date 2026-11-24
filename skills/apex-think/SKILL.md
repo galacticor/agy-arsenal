@@ -8,6 +8,18 @@ description: >-
 
 Auto-apply this cognitive protocol on complex multi-file edits, SQL/analytical pipelines, concurrency, or root-cause debugging. (Role boundary: pure reasoning & verification kernel — use `/apex-exec` for direct worker/Office execution, `/apex-architect` for 1-turn subagent handoff, and `/agentspace-advisor` when blocked.)
 
+## 0. Model-Aware Harness Routing (Low vs. Medium)
+
+Route tasks after a 1-turn read-only triage (`F` = touched files, `M` = disjoint parallel modules, `R` = risk/novelty `0|1`, `S` = consecutive failure strikes):
+- **T0 (`F == 1`, `LOC <= 40`, `R == 0`):** Direct `/apex-exec` (`edit_file` + deterministic test/compile gate). Skip `/apex-orchestrate`.
+- **T1 (`2 <= F <= 3`, `M == 1`, `R == 0`):**
+  - On **Hydrogen/Neon Low:** `/apex-think` -> **`/apex-architect`** (local 1-turn manifest + `flash` worker, zero Agentspace latency).
+  - On **Hydrogen/Neon Medium:** `/apex-think` -> `/apex-exec` directly.
+- **T2 (`R == 1` or `S >= 2` — hard problem-solving / 2-strike fail):** `/apex-think` -> **`/agentspace-advisor` (Carbon)** -> `/apex-exec`.
+- **T3 (`F >= 4` and `M >= 2` disjoint):**
+  - **Standard (`R == 0`):** `/apex-think` -> `/apex-orchestrate` (`2-4` worktrees).
+  - **Complex (`R == 1` or cross-module coupling):** `/apex-think` -> **`/agentspace-advisor` (Carbon)** (lock shared interfaces & disjoint ownership) -> **`/apex-orchestrate`** (`2-4` worktrees).
+
 ---
 
 ## 1. Mandatory Pre-Mutation `<thinking>` Protocol (`<200 words`)

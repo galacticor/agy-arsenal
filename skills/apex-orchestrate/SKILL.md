@@ -9,7 +9,7 @@ description: >-
 
 # `/apex-orchestrate` — In-App Multi-Agent Orchestrator
 
-Use `/apex-orchestrate` for large, multi-file, or parallelizable tasks when built-in `Orchestrator` / `/swarm` / `/run-workflow` are unavailable or when you want a deterministic **Plan → Execute → Merge-Back → Gate → Verify** pipeline inside Antigravity.
+Use `/apex-orchestrate` **only for T3 tasks (`F >= 4` touched files AND `M >= 2` strictly disjoint modules)** when built-in `Orchestrator` / `/swarm` / `/run-workflow` are unavailable or when you want a deterministic **Plan → Execute → Merge-Back → Gate → Verify** pipeline inside Antigravity. For complex T3 tasks (`R == 1` or cross-module interface coupling), consult **`/agentspace-advisor` (Carbon)** upfront to lock shared interfaces and disjoint `owned_files` before dispatching worktrees. For `1–3` file serial tasks, use `/apex-exec` (on Medium) or `/apex-architect` (on Low); reserve `/agentspace-advisor` on serial tasks for hard problem-solving (`R == 1` or 2-strike failure).
 
 ---
 
