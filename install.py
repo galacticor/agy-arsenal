@@ -6,7 +6,7 @@ Works on macOS, Linux, and Windows.
 Safely merges:
   1. `hooks/argon_reasoning_hook.py` -> `~/.gemini/config/argon_reasoning_hook.py` + `~/.gemini/config/hooks.json`
   2. `rules/GEMINI.argon-flash.md`   -> `~/.gemini/config/GEMINI.md` (via idempotent HTML marker comments)
-  3. `skills/apex-*`                 -> `~/.gemini/config/skills/apex-{think,exec,architect}/SKILL.md`
+  3. `skills/apex-*`                 -> `~/.gemini/config/skills/apex-{think,exec,architect,orchestrate}/`
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ GEMINI_MD_PATH = CONFIG_DIR / "GEMINI.md"
 
 SKILLS_SRC_ROOT = REPO_ROOT / "skills"
 SKILLS_DST_ROOT = CONFIG_DIR / "skills"
-SKILL_NAMES = ["apex-think", "apex-exec", "apex-architect"]
+SKILL_NAMES = ["apex-think", "apex-exec", "apex-architect", "apex-orchestrate"]
 LEGACY_SKILL_NAMES = ["argon-flash", "argon-architect", "argon-architect-mode"]
 
 HOOK_KEY = "argon-reasoning-booster"
@@ -105,9 +105,9 @@ def install_rules() -> None:
     rule_block = RULES_SRC.read_text(encoding="utf-8").strip()
 
     if not GEMINI_MD_PATH.is_file():
-        content = "---\ntrigger: always_on\n---\n\n" + rule_block + "\n"
+        content = rule_block + "\n"
         GEMINI_MD_PATH.write_text(content, encoding="utf-8")
-        print(f"  [OK] Created {GEMINI_MD_PATH} with Argon-Flash rules")
+        print(f"  [OK] Created {GEMINI_MD_PATH} with Argon-Flash rules ({len(content.encode('utf-8'))} bytes)")
         return
 
     existing = GEMINI_MD_PATH.read_text(encoding="utf-8")
@@ -120,8 +120,11 @@ def install_rules() -> None:
     else:
         updated = existing.rstrip() + "\n\n" + rule_block + "\n"
 
+    byte_len = len(updated.encode("utf-8"))
+    if byte_len > 24000:
+        print(f"  [WARN] {GEMINI_MD_PATH} is {byte_len} bytes (> 24,000 byte truncation limit)!")
     GEMINI_MD_PATH.write_text(updated, encoding="utf-8")
-    print(f"  [OK] Merged Argon-Flash rules into {GEMINI_MD_PATH}")
+    print(f"  [OK] Merged Argon-Flash rules into {GEMINI_MD_PATH} ({byte_len} bytes)")
 
 
 def install_skill() -> None:
@@ -135,10 +138,14 @@ def install_skill() -> None:
         dst_dir = SKILLS_DST_ROOT / sname
         if not src_dir.is_dir():
             continue
-        dst_dir.mkdir(parents=True, exist_ok=True)
-        for item in src_dir.iterdir():
-            if item.is_file():
-                shutil.copy2(item, dst_dir / item.name)
+        if dst_dir.exists():
+            shutil.rmtree(dst_dir)
+        shutil.copytree(src_dir, dst_dir)
+        if platform.system() != "Windows":
+            scripts_dir = dst_dir / "scripts"
+            if scripts_dir.is_dir():
+                for script in list(scripts_dir.rglob("*.py")) + list(scripts_dir.rglob("*.sh")):
+                    os.chmod(script, 0o755)
         print(f"  [OK] Installed slash-command skill `/{sname}` to {dst_dir}")
 
 
@@ -237,8 +244,11 @@ def main() -> None:
     install_rules()
     install_skill()
 
-    print("\nVerifying installed hook with self-test...")
+    print("\nVerifying installed hook & orchestrator helper with self-test...")
     subprocess.run([resolve_python_cmd(), str(HOOK_SCRIPT_DST), "--self-test"], check=True)
+    orch_ctl = SKILLS_DST_ROOT / "apex-orchestrate" / "scripts" / "orch_ctl.py"
+    if orch_ctl.is_file():
+        subprocess.run([resolve_python_cmd(), str(orch_ctl), "--help"], check=True, stdout=subprocess.DEVNULL)
     print("\nDone! Your Antigravity setup is now upgraded.")
     print_status()
 
