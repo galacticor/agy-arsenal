@@ -28,7 +28,11 @@ Use `/apex-orchestrate` **only for T3 tasks (`F >= 4` touched files AND `M >= 2`
 
 ## Phase 2 — Time-Boxed Wave Dispatch & `<210s` Watchdog
 1. Invoke `apex-implementer` (`Model: "flash"`, prompt prefixed with `[EFFORT: HIGH]` or `[EFFORT: MEDIUM]`; **never** `flash_lite`). Scope each worker's in-worktree check to **compile + module-local & contract unit tests (`<= 180s`)**; defer slow repo-wide suites to Phase 3 so workers finish inside the cache window.
-2. Arm a single `schedule` watchdog timer (`TimerCondition: "any"`, **`210s`** — never `>= 300s`, preserving a `90s` buffer before parent KV-cache expiry) when launching parallel background waves, then end your turn and wait for reactive wakeup (do **not** poll). Cap idle watchdog wakeups without worker progress at **2 cycles (`420s`)** before inspecting worker status.
+2. **KV-Cache Keepalive & Stall Watchdog (`210s` x Max 2 Cycles = `12m` Warm Window)**:
+   - **Thin Coordinator (`<10k` tokens)**: Arm a single stall-check timer `schedule(DurationSeconds=300, TimerCondition="any", Prompt="[WATCHDOG] Check stalled workers")` and end your turn—cold re-prefill is cheaper than heartbeating a small prefix.
+   - **Warm/Fat Coordinator (`>=10k` tokens — after research/interface reads)**: Arm `schedule(DurationSeconds=210, TimerCondition="any", Prompt="[KEEPALIVE 1/2] Re-arm 210s timer ONLY; zero status tools")` and end your turn immediately.
+     - **On `[KEEPALIVE 1/2]` wakeup (`t = 210s`, no worker finished yet)**: Do **NOT** call `manage_subagents` or `read_file` (avoiding a 2-turn tool roundtrip). Immediately call `schedule(DurationSeconds=210, TimerCondition="any", Prompt="[KEEPALIVE 2/2] Check worker health once, then park")` with `<15` output tokens and end turn (extends warm TTL to `510s`).
+     - **On `[KEEPALIVE 2/2]` wakeup (`t = 420s`, extends warm TTL to `720s / 12m`)**: Call `manage_subagents(Action="list")` **once** to repair/respawn dead workers, then **STOP scheduling timers** and end turn to wait reactively—beyond `2` pings, keepalives exceed cold-miss cost.
 3. **Critical Lifecycle Rule:** Do **NOT** call `manage_subagents(Action="kill")` on any `Workspace: "share"` subagent until Phase 2.5 cherry-pick succeeds—killing a subagent immediately destroys its temporary worktree.
 
 ---
