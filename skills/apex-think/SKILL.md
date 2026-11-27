@@ -20,6 +20,11 @@ Route tasks after a 1-turn read-only triage (`F` = touched files, `M` = disjoint
   - **Standard (`R == 0`):** `/apex-think` -> `/apex-orchestrate` (`2-4` worktrees).
   - **Complex (`R == 1` or cross-module coupling):** `/apex-think` -> **`/agentspace-advisor` (Carbon)** (lock shared interfaces & disjoint ownership) -> **`/apex-orchestrate`** (`2-4` worktrees).
 
+### 0.1 Cache-Window (`<210s`) & Epistemic-Fidelity Guardrails
+1. **Never Summarize Code for Planning**: Architects and `R == 1` planners must read **verbatim code/schema slices** (target functions + callers/callees), never lossy prose summaries. On unfamiliar large repos, use a read-only scout strictly to locate exact `path:line_start-line_end` spans.
+2. **Risk-Gated Model Floor (`R == 1`)**: Never launch unguided non-frontier `/swarm` or workers on `R == 1` tasks (concurrency, SQL PIT/grain invariants, auth, or `S >= 2`). Lock the invariant spec on Frontier (`/boost`, `/agentspace-advisor`, or `/apex-architect`) *before* delegating execution to `flash`.
+3. **Turn-0 Tool Schema Lock**: When delegating via `define_subagent`, register subagent schemas *before* bulk `read_file` turns so tool-header mutation never invalidates cached repo reads.
+
 ---
 
 ## 1. Mandatory Pre-Mutation `<thinking>` Protocol (`<200 words`)
@@ -43,7 +48,9 @@ Before your first `edit_file`/`write_file` callâ€”and after any failed commandâ€
 2. **Hypothesis-Driven Error Recovery**: On non-zero exit or test failure, NEVER blind-retry, swallow exceptions (`except Exception: pass`), or weaken test assertions. Formulate $H_1, H_2$ from the exact traceback line, run 1 read/diagnostic probe to falsify one hypothesis, then patch the root producer.
 3. **Anti-Sycophancy & Premise Falsification**: Challenge flawed prompt assumptions (Simpson's paradox, rate-vs-volume mix shifts, survivorship/future leakage, off-by-one window bounds) with concrete counterexamples before mutating code.
 4. **Surgical Parallel Edits**: Batch independent `edit_file` hunks; zero `TODO`s, stubs, or unnecessary full-file overwrites.
-5. **Deterministic Verification Gate**: Run `pytest -q --tb=short`, `python3 -m py_compile`, `node --check`, or query invariant checks before concluding.
+5. **Two-Tier Deterministic Verification Gate**:
+   - **Inner Loop (Subagent/Wave, `<180s`)**: Run `py_compile`/`node --check` + targeted unit & caller invariant tests to return within the parent's `300s` KV-cache TTL.
+   - **Outer Gate (Pre-Completion, Mandatory for `F >= 2`)**: Run the **full affected test/regression suite** (firewalled to disk log if output `>100` lines) before concluding; targeted unit tests never replace final cross-module verification.
 
 ---
 

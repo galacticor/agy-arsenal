@@ -15,7 +15,8 @@ Use `/apex-exec` for direct coding, debugging, test repair, and `.pptx`/`.docx`/
 Save ~95% weekly frontier quota by delegating execution loops immediately:
 
 1. **Do NOT run multi-turn edits or Office builds inside the frontier parent turn.**
-2. **Register `apex-worker`** (if not yet defined in this session) via `define_subagent`:
+2. **Turn-0 Schema Lock (`define_subagent` Before Repo Reads)**:
+   - Register `apex-worker` (if not yet defined in this session) **before** any parent `read_file`/`grep_search` calls so tool-schema updates do not invalidate cached context:
    - `Name`: `"apex-worker"`
    - `Description`: `"Frontier-rigor workhorse executor with causal tracing, invariant/falsification gates, parallel batching, and Office QA."`
    - `EnableWriteTools`: `true`
@@ -31,10 +32,14 @@ Save ~95% weekly frontier quota by delegating execution loops immediately:
      5. [VERIFY]: Run pytest -q --tb=short, python3 -m py_compile, node --check, or office_view_hook.py --summary-only before finishing.
      6. [CIRCUIT BREAKER]: If 2 fix attempts fail or CONFIDENCE < 0.70 after inspection, STOP editing and return [BLOCKED_ESCALATE_CARBON] with paths, tracebacks, and falsified hypotheses.
      ```
-3. **Launch Worker** via `invoke_subagent`:
+3. **Fidelity-Preserving Offload (`R == 0` vs `R == 1`)**:
+   - **Routine (`R == 0`, `F <= 2`)**: Keep parent **zero-read** (`<8k` context); pass target paths/symptoms and let `apex-worker` (`Model: "flash"`) perform Gate 1 verbatim parallel reads inside its own context.
+   - **Subtle/Coupled (`R == 1` or `F >= 3`)**: Do **not** blind-offload to `flash`; switch to `/apex-architect` (or `/agentspace-advisor`) to lock verbatim line-level invariants first.
+4. **Launch Worker & Enforce Two-Tier Gate** via `invoke_subagent`:
    - `TypeName`: `"apex-worker"`, `Role`: `"Apex Workhorse Executor"`, `Model`: `"flash"`
    - `Prompt`: `"[EFFORT: HIGH — Enforce all 6 Frontier Workhorse Gates, <thinking> falsification, and parallel batching]\n" + <task & verification criteria>`
-4. **Halt parent tool calls**, await completion, and present verified outputs—or route `[BLOCKED_ESCALATE_CARBON]` to `/agentspace-advisor`.
+   - For `F >= 2`, instruct worker to run targeted module + caller tests (`<180s`) first, then run the full regression gate via redirected log (`pytest ... > .apex-orch/exec_gate.log 2>&1`) before returning final pass/fail.
+5. **Halt parent tool calls**, await completion, and present verified outputs—or route `[BLOCKED_ESCALATE_CARBON]` directly to `/agentspace-advisor`.
 
 ---
 

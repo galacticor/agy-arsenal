@@ -13,22 +13,22 @@ Use `/apex-orchestrate` **only for T3 tasks (`F >= 4` touched files AND `M >= 2`
 
 ---
 
-## Phase 1 — Pre-Flight, Research & Decomposition
+## Phase 1 — Pre-Flight, Schema Lock & Verbatim-Contract Decomposition
 1. Initialize the run state:
    ```bash
    python3 ~/.gemini/config/skills/apex-orchestrate/scripts/orch_ctl.py init --run-id <slug> --spec-text "<goal>"
    ```
-2. For unfamiliar large codebases, fan out built-in read-only `research` subagents first so raw file reads never bloat Coordinator context.
-3. Read `~/.gemini/config/skills/apex-orchestrate/references/subagent-contracts.md` and call `define_subagent` for `apex-implementer` and `apex-verifier` if not yet registered in this conversation.
+2. **Turn-0 Subagent Registration (Before Research/Reads)**: Read `~/.gemini/config/skills/apex-orchestrate/references/subagent-contracts.md` and call `define_subagent` for `apex-implementer` and `apex-verifier` **before** launching `research` subagents or reading repo files so tool-schema updates never invalidate cached Coordinator context.
+3. **Locator Scout + Interface Lock**: For unfamiliar large codebases, fan out read-only `research` subagents returning **exact `path:line` contracts, verbatim interface signatures, and invariant constraints** (never vague prose summaries). For `R == 1` or coupled interfaces, lock shared types/SQL invariants in `.apex-orch/<slug>/spec.md` (via Carbon or `/boost` upfront) before dispatching workers.
 4. Choose workspace topology:
    - **Single worker or sequential chain:** `Workspace: "inherit"` (zero merge overhead, works on dirty trees and non-Git folders).
    - **2 to 4 independent tasks with strictly disjoint `owned_files`:** `Workspace: "share"` (cap concurrency at **4 workers** per wave).
 
 ---
 
-## Phase 2 — Wave Dispatch & Watchdog
-1. Invoke `apex-implementer` (`Model: "flash"`, prompt prefixed with `[EFFORT: HIGH]` or `[EFFORT: MEDIUM]`; **never** `flash_lite`).
-2. Arm a single `schedule` watchdog timer (`TimerCondition: "any"`, 300s) when launching parallel background waves, then end your turn and wait for reactive wakeup (do **not** poll).
+## Phase 2 — Time-Boxed Wave Dispatch & `<210s` Watchdog
+1. Invoke `apex-implementer` (`Model: "flash"`, prompt prefixed with `[EFFORT: HIGH]` or `[EFFORT: MEDIUM]`; **never** `flash_lite`). Scope each worker's in-worktree check to **compile + module-local & contract unit tests (`<= 180s`)**; defer slow repo-wide suites to Phase 3 so workers finish inside the cache window.
+2. Arm a single `schedule` watchdog timer (`TimerCondition: "any"`, **`210s`** — never `>= 300s`, preserving a `90s` buffer before parent KV-cache expiry) when launching parallel background waves, then end your turn and wait for reactive wakeup (do **not** poll). Cap idle watchdog wakeups without worker progress at **2 cycles (`420s`)** before inspecting worker status.
 3. **Critical Lifecycle Rule:** Do **NOT** call `manage_subagents(Action="kill")` on any `Workspace: "share"` subagent until Phase 2.5 cherry-pick succeeds—killing a subagent immediately destroys its temporary worktree.
 
 ---
@@ -43,12 +43,12 @@ Use `/apex-orchestrate` **only for T3 tasks (`F >= 4` touched files AND `M >= 2`
 
 ---
 
-## Phase 3 — Context-Firewalled Deterministic Gate
-1. Run each test/lint/typecheck command on the integrated parent checkout:
+## Phase 3 — Mandatory Full-Suite Deterministic Gate (Outer Regression Shield)
+1. Because Phase 2 waves run fast `<180s` targeted checks, Phase 3 MUST run the **complete cross-module test, lint, typecheck, and data-invariant suite** on the integrated parent checkout:
    ```bash
    python3 ~/.gemini/config/skills/apex-orchestrate/scripts/orch_ctl.py gate --run-id <slug> -- <command...>
    ```
-   *(Never run unscoped `git diff` directly into Coordinator stdout.)*
+   *(Never skip Phase 3 even when all Phase 2 module tests pass; never run unscoped `git diff` directly into Coordinator stdout.)*
 2. **Post-Merge Repair Routing:** If any gate fails, do **not** `send_message` stale `Workspace: "share"` workers. Invoke a single sequential `apex-implementer` (`Workspace: "inherit"`, `Model: "flash"`, `[EFFORT: HIGH]`) pointing at `.apex-orch/<run_id>/gate.log`. Cap at **2 repair rounds**; if still failing, escalate to `/agentspace-advisor` or offer `orch_ctl.py cleanup --run-id <slug> --rollback`.
 
 ---
