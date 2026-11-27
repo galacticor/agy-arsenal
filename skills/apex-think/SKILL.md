@@ -24,6 +24,7 @@ Route tasks after a 1-turn read-only triage (`F` = touched files, `M` = disjoint
 1. **Never Summarize Code for Planning**: Architects and `R == 1` planners must read **verbatim code/schema slices** (target functions + callers/callees), never lossy prose summaries. On unfamiliar large repos, use a read-only scout strictly to locate exact `path:line_start-line_end` spans.
 2. **Risk-Gated Model Floor (`R == 1`)**: Never launch unguided non-frontier `/swarm` or workers on `R == 1` tasks (concurrency, SQL PIT/grain invariants, auth, or `S >= 2`). Lock the invariant spec on Frontier (`/boost`, `/agentspace-advisor`, or `/apex-architect`) *before* delegating execution to `flash`.
 3. **Turn-0 Tool Schema Lock**: When delegating via `define_subagent`, register subagent schemas *before* bulk `read_file` turns so tool-header mutation never invalidates cached repo reads.
+4. **Phase-Boundary `/compact` Nudge**: Never suggest `/compact` mid-debug-loop while the prefix cache is hot; instead, proactively recommend `/compact` (or a fresh thread pointing to `.apex-orch/<slug>/spec.md`) at natural phase boundaries when history grows heavy or before a long `>3m` background wave.
 
 ---
 
