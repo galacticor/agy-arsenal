@@ -58,7 +58,7 @@ Use `/apex-orchestrate` **only for T3 tasks (`F >= 4` touched files AND `M >= 2`
 ---
 
 ## Phase 4 — Heterogeneous Verification & Teardown
-1. Invoke `apex-verifier` with `Model: "pro"` (if unavailable, retry with `Model: "inherit"` + `[EFFORT: HIGH]`), passing `.apex-orch/<run_id>/{spec.md,combined.diff,gate.log}`.
+1. Invoke `apex-verifier` with `Model: "inherit"` + `[EFFORT: HIGH]` (never `Model: "pro"` or `flash_lite`), passing `.apex-orch/<run_id>/{spec.md,combined.diff,gate.log}`.
 2. If `VERDICT: NEEDS_CHANGES`, route blockers through one `Workspace: "inherit"` implementer and re-run Phase 3 before re-verifying (max 1 verifier repair cycle).
 3. **Mandatory Cleanup:** Call `manage_subagents(Action="kill_all")` and run:
    ```bash

@@ -144,7 +144,7 @@ def cmd_integrate(args: argparse.Namespace) -> int:
         print(json.dumps({"status": "scope_violation", "unauthorized_files": unauthorized}))
         return 1
 
-    cp = _run_git(root, ["cherry-pick", "--no-commit", resolved_sha])
+    cp = _run_git(root, ["cherry-pick", "--no-commit", diff_range if base_sha else resolved_sha])
     if cp.returncode != 0:
         conf_res = _run_git(root, ["diff", "--name-only", "--diff-filter=U"])
         conflicts = [ln.strip() for ln in conf_res.stdout.splitlines() if ln.strip()]
@@ -154,6 +154,9 @@ def cmd_integrate(args: argparse.Namespace) -> int:
         return 1
 
     _run_git(root, ["reset", "HEAD"])
+    existing_touched = [f for f in touched if (root / f).exists()]
+    if existing_touched:
+        _run_git(root, ["add", "-N", "--", *existing_touched])
     refs = state.setdefault("integrated_refs", [])
     if args.ref not in refs:
         refs.append(args.ref)
@@ -227,9 +230,17 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         if args.rollback and not state.get("dirty_tracked_files"):
             _run_git(root, ["checkout", "--", "."])
             _run_git(root, ["clean", "-fd"])
-        for ref in state.get("integrated_refs", []):
-            if ref.startswith(f"apex/{args.run_id}/"):
-                _run_git(root, ["branch", "-D", ref])
+        branches_to_delete = {
+            ref for ref in state.get("integrated_refs", []) if ref.startswith(f"apex/{args.run_id}/")
+        }
+        br_res = _run_git(root, ["branch", "--list", f"apex/{args.run_id}/*"])
+        if br_res.returncode == 0:
+            for ln in br_res.stdout.splitlines():
+                name = ln.strip().lstrip("* ").strip()
+                if name.startswith(f"apex/{args.run_id}/"):
+                    branches_to_delete.add(name)
+        for ref in sorted(branches_to_delete):
+            _run_git(root, ["branch", "-D", ref])
 
     if sdir.exists():
         shutil.rmtree(sdir)

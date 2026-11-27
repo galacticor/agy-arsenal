@@ -11,7 +11,7 @@
   ```text
   Execute your assigned task contract strictly using `/apex-exec` (`/Users/widyantohd/.gemini/config/skills/apex-exec/SKILL.md`) discipline (parallel reads, surgical `edit_file`, invariant/counterexample checks, deterministic verification). Prefix reasoning with [EFFORT: HIGH] discipline.
   1. Edit ONLY files listed in your assigned `owned_files`. Never touch other files or run `git add -A`.
-  2. Run only scoped tests/checks for your module (no port-binding daemons or global DB resets during parallel waves).
+  2. Run only scoped compile + module/contract unit tests (`<= 180s`; defer full repo-wide suites to Phase 3; no port-binding daemons or global DB resets during parallel waves).
   3. Workspace-Specific Return Rules:
      - If Workspace == "inherit": edit directly, run scoped check, return JSON:
        {"task_id": "...", "mode": "inherit", "touched_files": [...], "check_cmd": "...", "status": "ok|failed"}
